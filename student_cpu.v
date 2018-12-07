@@ -30,15 +30,18 @@ endmodule
 
 // ALU Control
 module alucontrol(input wire [5:0] func, input wire [1:0] aluOp, output wire [3:0] aluctrl);
-   always @(aluOp)
+    reg[3:0] Aluctrl;   
+    always @(aluOp)
     begin
     case(func)
-    32: aluctrl = 2;
-    34: aluctrl = 3;
-    36: aluctrl = 0;
-    37: aluctrl = 1;
-    default: aluctrl = 2;
+    32: Aluctrl = 2;    //Add
+    34: Aluctrl = 3;    //Sub
+    36: Aluctrl = 0;    //AND
+    37: Aluctrl = 1;    //OR
+    default: Aluctrl = 2;
+    endcase
     end
+assign aluctrl = Aluctrl;
 
                    
 endmodule
@@ -111,26 +114,99 @@ endmodule
 module controlpathfsm(input wire rst, input wire clk, input wire newInstruction, input wire [5:0] opcode, 
                         output reg _RegWrite, output reg _MemRead, output reg _MemWrite);
 
+                 always @(posedge clk)
+						begin
+						 case(opcode)
+						 0:#5 _RegWrite = 1;
+						 35: begin
+						 #3 _MemRead = 1;
+						 #3 _RegWrite =1;
+						 end
+						 43:#3 _MemWrite = 1;
+                         endcase
+						 end
+						 
+						 always @(rst)
+						 begin
+						 _RegWrite = 0;
+						 _MemWrite = 0;
+						 _MemWrite = 0;
+						 end
+                      
+
 endmodule
 
 // Combinational logic portion of Control Path (MemToReg, RegDst, ALUSrc, ALUOp)
 module controlpathcomb(input wire [5:0] opcode, output wire _MemToReg, 
                     output wire _RegDst, output wire _ALUSrc, output wire [1:0] _ALUOp);
-
+    
+    reg MemToReg;
+    reg RegDst;
+    reg ALUSrc;
+    reg [1:0] ALUOp;
     always @(*)
     begin 
         case(opcode)
-        0: MemToReg = 0;  
+        0: begin
+            MemToReg = 0;
+            RegDst = 1;
+            ALUSrc = 0; 
+            ALUOp = 2;
+           end
         35:
+           begin
+            MemToReg = 1; 
+            RegDst = 0;
+            ALUSrc = 1; 
+            ALUOp = 2;
+           end
         43:
+        begin
+            MemToReg = 1; 
+            RegDst = 0;
+            ALUSrc = 1; 
+            ALUOp = 2;
+           end
+       endcase
     end
+    assign _MemToReg = MemToReg;
+    assign _RegDst = RegDst;
+    assign _AluSrc = ALUSrc;
+    assign _AlUOp = ALUOp;
 
                     
 endmodule
 
 // The entire CPU without PC, instruction memory, and branch circuit
 module mipscpu(input wire reset, input wire clock, input wire [31:0] instrword, input wire newinstr);
-
-
+    wire MemToReg;
+    wire RegDst;
+    wire ALUSrc;
+    wire [1:0] ALUOp;   
+    wire RegWrite;
+    wire MemRead;
+    wire MemWrite;
+    wire [31:0] SignExtended; //Output of SignExtender
+    wire [4:0]  WriteReg;     //Output of 5bit Mux
+    wire [31:0] WriteData;
+    wire [31:0] Read1;
+    wire [31:0] Read2;
+    wire [31:0] Alu2;
+    wire [3:0]  ALUCtrl;
+    wire [31:0] ALUResult;
+    wire [31:0] DataRead;
+    wire [6:0]  MemAddr;
+        
+        datamem         myDataMem(reset, MemAddr, MemRead, MemWrite, Read2, DataRead);
+        controlpathcomb myCPC(instrword[31:26], MemToReg, RegDst, ALUSrc, ALUOp);
+        controlpathfsm  myCPF(reset, clock, newinstr, instrword[31:26], RegWrite, MemRead, MemWrite);
+        signextend      myExtender(instrword[15:0], SignExtended);
+        twotoonemux_5bit my5Mux(instrword[20:16], instrword[15:11], RegDst, WriteReg);
+        registerfile    myReg(reset, instrword[25:21], instrword[20:16], WriteReg, WriteData, RegWrite, Read1, Read2);
+        twotoonemux     my32Mux(Read2, SignExtended, ALUSrc, Alu2);
+        alucontrol      myALUC(instrword[5:0], ALUOp, ALUCtrl);
+        alu             myALU(Read1, Alu2, ALUCtrl, ALUResult);
+        
+        
 endmodule
 
