@@ -31,11 +31,11 @@ endmodule
 // ALU Control
 module alucontrol(input wire [5:0] func, input wire [1:0] aluOp, output wire [3:0] aluctrl);
     reg[3:0] Aluctrl;   
-    always @(aluOp)
+    always @(*)
     begin
     case(func)
     32: Aluctrl = 2;    //Add
-    34: Aluctrl = 3;    //Sub
+    34: Aluctrl = 6;    //Sub
     36: Aluctrl = 0;    //AND
     37: Aluctrl = 1;    //OR
     default: Aluctrl = 2;
@@ -114,15 +114,33 @@ endmodule
 module controlpathfsm(input wire rst, input wire clk, input wire newInstruction, input wire [5:0] opcode, 
                         output reg _RegWrite, output reg _MemRead, output reg _MemWrite);
 
-                 always @(posedge clk)
+                 always @(posedge newInstruction)
 						begin
 						 case(opcode)
-						 0:#5 _RegWrite = 1;
+						 0:begin
+                            #3 _MemRead = 0;
+                            #3 _RegWrite = 1;
+                            #1 _MemWrite = 0;
+                               _MemRead = 0;
+						       _RegWrite = 0;
+                               _MemWrite = 0;                           
+                            end
 						 35: begin
 						 #3 _MemRead = 1;
 						 #3 _RegWrite =1;
+                         #1 _MemWrite = 0;
+                            _MemRead = 0;
+						    _RegWrite = 0;
+                            _MemWrite = 0;                            
 						 end
-						 43:#3 _MemWrite = 1;
+						 43: begin
+                         #3 _MemRead = 0;
+						 #3 _RegWrite =0;
+                         #1 _MemWrite = 1;
+                            _MemRead = 0;
+						    _RegWrite = 0;
+                            _MemWrite = 0;
+                            end
                          endcase
 						 end
 						 
@@ -139,12 +157,13 @@ endmodule
 // Combinational logic portion of Control Path (MemToReg, RegDst, ALUSrc, ALUOp)
 module controlpathcomb(input wire [5:0] opcode, output wire _MemToReg, 
                     output wire _RegDst, output wire _ALUSrc, output wire [1:0] _ALUOp);
-    
+  
     reg MemToReg;
-    reg RegDst;
+    reg RegDst = 1;
     reg ALUSrc;
     reg [1:0] ALUOp;
-    always @(*)
+
+    always @(opcode)
     begin 
         case(opcode)
         0: begin
@@ -167,12 +186,18 @@ module controlpathcomb(input wire [5:0] opcode, output wire _MemToReg,
             ALUSrc = 1; 
             ALUOp = 2;
            end
+        default : begin
+        MemToReg = 0;   
+        RegDst = 0;
+        ALUSrc = 1; 
+        ALUOp = 2;
+        end
        endcase
     end
     assign _MemToReg = MemToReg;
     assign _RegDst = RegDst;
-    assign _AluSrc = ALUSrc;
-    assign _AlUOp = ALUOp;
+    assign _ALUSrc = ALUSrc;
+    assign _ALUOp = ALUOp;
 
                     
 endmodule
@@ -195,9 +220,9 @@ module mipscpu(input wire reset, input wire clock, input wire [31:0] instrword, 
     wire [3:0]  ALUCtrl;
     wire [31:0] ALUResult;
     wire [31:0] DataRead;
-    wire [6:0]  MemAddr;
+    wire [31:0]  MemAddr;
         
-        datamem         myDataMem(reset, MemAddr, MemRead, MemWrite, Read2, DataRead);
+        datamem         myDataMem(reset, ALUResult, MemRead, MemWrite, Read2, DataRead);
         controlpathcomb myCPC(instrword[31:26], MemToReg, RegDst, ALUSrc, ALUOp);
         controlpathfsm  myCPF(reset, clock, newinstr, instrword[31:26], RegWrite, MemRead, MemWrite);
         signextend      myExtender(instrword[15:0], SignExtended);
@@ -206,7 +231,7 @@ module mipscpu(input wire reset, input wire clock, input wire [31:0] instrword, 
         twotoonemux     my32Mux(Read2, SignExtended, ALUSrc, Alu2);
         alucontrol      myALUC(instrword[5:0], ALUOp, ALUCtrl);
         alu             myALU(Read1, Alu2, ALUCtrl, ALUResult);
-        
+        twotoonemux     my32Mux2(ALUResult, DataRead, MemToReg, WriteData);
         
 endmodule
 
