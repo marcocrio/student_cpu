@@ -31,7 +31,25 @@ endmodule
 // ALU Control
 module alucontrol(input wire [5:0] func, input wire [1:0] aluOp, output wire [3:0] aluctrl);
     reg[3:0] Aluctrl;   
+
     always @(*)
+    begin
+    case(aluOp)
+    0:Aluctrl = 2;
+    2:begin
+      case(func)          //Case statment for the value of the function.
+      32: Aluctrl = 2;    //Add
+      34: Aluctrl = 6;    //Sub
+      36: Aluctrl = 0;    //AND
+      37: Aluctrl = 1;    //OR
+      endcase
+      end
+    endcase
+    end
+
+
+
+ /*   always @(*)
     begin
     case(func)          //Case statment for the value of the function.
     32: Aluctrl = 2;    //Add
@@ -40,8 +58,8 @@ module alucontrol(input wire [5:0] func, input wire [1:0] aluOp, output wire [3:
     37: Aluctrl = 1;    //OR
     default: Aluctrl = 2; //The default of the ALU is an addition.
     endcase
-    end
-assign aluctrl = Aluctrl;
+    end */
+ assign aluctrl = Aluctrl;
 
                    
 endmodule
@@ -218,14 +236,14 @@ module controlpathcomb(input wire [5:0] opcode, output wire _MemToReg,
             MemToReg = 1; //When the opcode is 35 MemToReg is 1, RegDst is 0, ALUSrc is 1, and ALUOp is 2.
             RegDst = 0;
             ALUSrc = 1; 
-            ALUOp = 2;
+            ALUOp = 0;
            end
         43:
         begin
             MemToReg = 1;  //When the opcode is 43 MemToReg is 1, RegDst is 0, ALUSrc is 1, and ALUOp is 2.
             RegDst = 0;
             ALUSrc = 1; 
-            ALUOp = 2;
+            ALUOp = 0;
            end
         default : begin    //The default of the control path is MemToReg is 0, RegDst is 0, ALUSrc is 1, and ALUOp is 2.
         MemToReg = 0;   
